@@ -440,4 +440,51 @@ struct MockSequenceTests {
     }
 }
 
-// NOTE: Metrics tests will be added when PR #7 (metrics feature) is merged
+@Suite("Metrics Tests")
+struct MetricsTests {
+
+    @Test("InMemoryMetricsCollector records metrics")
+    func metricsCollectorRecordsMetrics() async {
+        let collector = InMemoryMetricsCollector()
+        await collector.record(RequestMetrics(
+            endpoint: "/test", statusCode: 200, duration: 1.5,
+            bytesSent: 100, bytesReceived: 200, isSuccess: true
+        ))
+
+        let allMetrics = await collector.getAllMetrics()
+        #expect(allMetrics.count == 1)
+        #expect(allMetrics.first?.endpoint == "/test")
+    }
+
+    @Test("Metrics statistics are calculated correctly")
+    func metricsStatisticsCalculation() async {
+        let collector = InMemoryMetricsCollector()
+
+        await collector.record(RequestMetrics(
+            endpoint: "/s1", statusCode: 200, duration: 1.0,
+            bytesSent: 100, bytesReceived: 200, isSuccess: true
+        ))
+        await collector.record(RequestMetrics(
+            endpoint: "/s2", statusCode: 201, duration: 2.0,
+            bytesSent: 150, bytesReceived: 300, isSuccess: true
+        ))
+        await collector.record(RequestMetrics(
+            endpoint: "/fail", statusCode: 500, duration: 0.5,
+            bytesSent: 50, bytesReceived: 100, isSuccess: false
+        ))
+
+        let stats = await collector.getStatistics()
+        #expect(stats.totalRequests == 3)
+        #expect(stats.successfulRequests == 2)
+        #expect(stats.failedRequests == 1)
+        #expect(stats.totalBytesSent == 300)
+    }
+
+    @Test("Client can be configured with metrics collector")
+    func clientWithMetricsCollector() async {
+        let collector = InMemoryMetricsCollector()
+        _ = URLSessionNetworkClient.configured(metricsCollector: collector)
+        let stats = await collector.getStatistics()
+        #expect(stats.totalRequests == 0)
+    }
+}
