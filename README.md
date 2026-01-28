@@ -136,7 +136,41 @@ let authInterceptor = BearerTokenInterceptor {
 
 // Log all requests
 let loggingInterceptor = LoggingInterceptor()
+
+// Override timeout for all requests
+let timeoutInterceptor = TimeoutInterceptor(timeoutInterval: 60)
 ```
+
+## Timeouts
+
+Control request timeouts at multiple levels:
+
+```swift
+// Per-endpoint timeout (in Endpoint implementation)
+enum MyAPI: Endpoint {
+    case slowOperation
+    
+    var timeoutInterval: TimeInterval {
+        switch self {
+        case .slowOperation: return 120  // 2 minutes
+        }
+    }
+}
+
+// Client-level default timeout (overrides all endpoints)
+let client = URLSessionNetworkClient.configured(
+    timeoutInterval: 45
+)
+
+// SimpleEndpoint with custom timeout
+let endpoint = SimpleEndpoint(
+    baseURL: URL(string: "https://api.example.com")!,
+    path: "/slow-endpoint",
+    timeoutInterval: 90
+)
+```
+
+**Default:** 30 seconds (if not specified)
 
 ## Response Handlers
 

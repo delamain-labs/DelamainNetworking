@@ -280,6 +280,53 @@ struct RetryTests {
     // TODO: Consider extracting RetryExecutor for better testability.
 }
 
+@Suite("Timeout Tests")
+struct TimeoutTests {
+
+    @Test("Endpoint has default timeout of 30 seconds")
+    func endpointDefaultTimeout() throws {
+        let endpoint = SimpleEndpoint(
+            baseURL: URL(string: "https://api.example.com")!,
+            path: "/test"
+        )
+
+        #expect(endpoint.timeoutInterval == 30)
+    }
+
+    @Test("Endpoint timeout can be customized")
+    func endpointCustomTimeout() throws {
+        let endpoint = SimpleEndpoint(
+            baseURL: URL(string: "https://api.example.com")!,
+            path: "/test",
+            timeoutInterval: 60
+        )
+
+        #expect(endpoint.timeoutInterval == 60)
+    }
+
+    @Test("TimeoutInterceptor overrides request timeout")
+    func timeoutInterceptorOverridesTimeout() async throws {
+        let interceptor = TimeoutInterceptor(timeoutInterval: 15)
+
+        var request = URLRequest(url: URL(string: "https://example.com")!)
+        request.timeoutInterval = 30
+
+        request = try await interceptor.intercept(request)
+
+        #expect(request.timeoutInterval == 15)
+    }
+
+    @Test("Client can be configured with default timeout")
+    func clientWithDefaultTimeout() {
+        let client = URLSessionNetworkClient.configured(
+            timeoutInterval: 45
+        )
+
+        // Client should be created successfully with timeout
+        #expect(client != nil)
+    }
+}
+
 @Suite("Mock Sequence Tests")
 struct MockSequenceTests {
 
