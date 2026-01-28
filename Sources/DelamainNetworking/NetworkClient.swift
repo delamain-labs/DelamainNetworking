@@ -60,6 +60,7 @@ public actor URLSessionNetworkClient: NetworkClient {
     private let interceptors: [any RequestInterceptor]
     private let responseHandlers: [any ResponseHandler]
     private let retryConfiguration: RetryConfiguration?
+    private let metricsCollector: (any MetricsCollector)?
 
     /// Creates a new URLSession-based network client.
     /// - Parameters:
@@ -67,16 +68,19 @@ public actor URLSessionNetworkClient: NetworkClient {
     ///   - interceptors: Request interceptors to apply before each request.
     ///   - responseHandlers: Response handlers to process responses.
     ///   - retryConfiguration: Optional retry configuration. If nil, retries are disabled.
+    ///   - metricsCollector: Optional metrics collector for tracking request statistics.
     public init(
         session: URLSession = .shared,
         interceptors: [any RequestInterceptor] = [],
         responseHandlers: [any ResponseHandler] = [],
-        retryConfiguration: RetryConfiguration? = nil
+        retryConfiguration: RetryConfiguration? = nil,
+        metricsCollector: (any MetricsCollector)? = nil
     ) {
         self.session = session
         self.interceptors = interceptors
         self.responseHandlers = responseHandlers
         self.retryConfiguration = retryConfiguration
+        self.metricsCollector = metricsCollector
     }
 
     public func request<T: Decodable & Sendable>(
@@ -114,13 +118,21 @@ public actor URLSessionNetworkClient: NetworkClient {
 
     /// Performs a single request attempt without retry.
     private func performRequest(_ request: URLRequest) async throws -> Data {
+        let startTime = Date()
+        let endpoint = request.url?.path ?? "unknown"
+        let bytesSent = Int64(request.httpBody?.count ?? 0)
+
         let (data, response): (Data, URLResponse)
 
         do {
             (data, response) = try await session.data(for: request)
         } catch let error as URLError where error.code == .cancelled {
+            await recordMetrics(endpoint: endpoint, statusCode: nil, startTime: startTime,
+                                bytesSent: bytesSent, bytesReceived: 0, isSuccess: false)
             throw NetworkError.cancelled
         } catch {
+            await recordMetrics(endpoint: endpoint, statusCode: nil, startTime: startTime,
+                                bytesSent: bytesSent, bytesReceived: 0, isSuccess: false)
             throw NetworkError.networkError(error)
         }
 
@@ -130,14 +142,30 @@ public actor URLSessionNetworkClient: NetworkClient {
             processedData = try await handler.handle(processedData, response: response)
         }
 
-        // Validate HTTP status code
+        // Validate HTTP status code and record metrics
         if let httpResponse = response as? HTTPURLResponse {
-            guard (200...299).contains(httpResponse.statusCode) else {
-                throw NetworkError.httpError(statusCode: httpResponse.statusCode, data: processedData)
+            let statusCode = httpResponse.statusCode
+            let isSuccess = (200...299).contains(statusCode)
+            await recordMetrics(endpoint: endpoint, statusCode: statusCode, startTime: startTime,
+                                bytesSent: bytesSent, bytesReceived: Int64(data.count), isSuccess: isSuccess)
+            guard isSuccess else {
+                throw NetworkError.httpError(statusCode: statusCode, data: processedData)
             }
         }
 
         return processedData
+    }
+
+    // swiftlint:disable:next function_parameter_count
+    private func recordMetrics(endpoint: String, statusCode: Int?, startTime: Date,
+                               bytesSent: Int64, bytesReceived: Int64, isSuccess: Bool) async {
+        guard let collector = metricsCollector else { return }
+        await collector.record(RequestMetrics(
+            endpoint: endpoint, statusCode: statusCode,
+            duration: Date().timeIntervalSince(startTime),
+            bytesSent: bytesSent, bytesReceived: bytesReceived,
+            isSuccess: isSuccess, timestamp: startTime
+        ))
     }
 
     /// Performs a request with exponential backoff retry.
@@ -207,12 +235,14 @@ public extension URLSessionNetworkClient {
     ///   - enableLogging: Enable request/response logging.
     ///   - loggingConfiguration: Configuration for logging behavior (redaction, body logging, etc.).
     ///   - retryConfiguration: Optional retry configuration with exponential backoff.
+    ///   - metricsCollector: Optional metrics collector for tracking request statistics.
     static func configured(
         baseHeaders: [String: String] = [:],
         timeoutInterval: TimeInterval? = nil,
         enableLogging: Bool = false,
         loggingConfiguration: LoggingConfiguration = .default,
-        retryConfiguration: RetryConfiguration? = nil
+        retryConfiguration: RetryConfiguration? = nil,
+        metricsCollector: (any MetricsCollector)? = nil
     ) -> URLSessionNetworkClient {
         var interceptors: [any RequestInterceptor] = []
         var handlers: [any ResponseHandler] = []
@@ -233,7 +263,8 @@ public extension URLSessionNetworkClient {
         return URLSessionNetworkClient(
             interceptors: interceptors,
             responseHandlers: handlers,
-            retryConfiguration: retryConfiguration
+            retryConfiguration: retryConfiguration,
+            metricsCollector: metricsCollector
         )
     }
 }
