@@ -12,11 +12,12 @@ struct TestUser: Codable, Sendable, Equatable {
 
 // MARK: - DTO Mapping Test Models
 
+// swiftlint:disable identifier_name
 struct UserDTO: Codable, Sendable, DomainMappable {
     let user_id: Int
     let display_name: String
     let email_address: String
-    
+
     func toDomain() -> DomainUser {
         DomainUser(
             id: user_id,
@@ -25,6 +26,7 @@ struct UserDTO: Codable, Sendable, DomainMappable {
         )
     }
 }
+// swiftlint:enable identifier_name
 
 struct DomainUser: Equatable {
     let id: Int
