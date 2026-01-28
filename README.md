@@ -12,7 +12,8 @@ A modern, async/await networking library for Swift. Clean, type-safe, and testab
 - 🚀 **Pure Async/Await** — Built entirely on Swift Concurrency
 - 🔒 **Type-Safe** — Generic request methods with Codable support
 - 🧪 **Testable** — Protocol-based design with mock client included
-- 🔌 **Interceptors** — Easily add authentication, logging, retry logic
+- 🔌 **Interceptors** — Easily add authentication, logging, and custom logic
+- 🔄 **Automatic Retry** — Exponential backoff with jitter for transient failures
 - ✅ **Swift 6 Ready** — Full Sendable conformance, no data races
 
 > 📍 See our [Roadmap](ROADMAP.md) for upcoming features
@@ -145,6 +146,38 @@ Response handlers process responses before they're returned:
 // Log all responses
 let loggingHandler = LoggingResponseHandler()
 ```
+
+## Retry & Resilience
+
+Automatic retry with exponential backoff for transient failures:
+
+```swift
+// Use default retry configuration
+let client = URLSessionNetworkClient.configured(
+    retryConfiguration: .default
+)
+
+// Customize retry behavior
+let customRetry = RetryConfiguration(
+    maxRetries: 5,              // Max retry attempts
+    baseDelay: 2.0,             // Initial delay in seconds
+    maxDelay: 60.0,             // Maximum delay cap
+    retryableStatusCodes: [408, 429, 500, 502, 503, 504]
+)
+
+let client = URLSessionNetworkClient.configured(
+    retryConfiguration: customRetry
+)
+```
+
+**Default Behavior:**
+- **Max retries:** 3 attempts
+- **Exponential backoff:** Starts at 1s, doubles each attempt
+- **Max delay:** 30s (prevents excessive waits)
+- **Jitter:** Adds 0-25% random delay to prevent thundering herd
+- **Retryable status codes:** 408 (Timeout), 429 (Too Many Requests), 500, 502, 503, 504
+- **Network errors:** Connection issues and timeouts are automatically retried
+- **Non-retryable:** 4xx client errors (except 408, 429), decoding errors, cancelled requests
 
 ## DTO Mapping
 
