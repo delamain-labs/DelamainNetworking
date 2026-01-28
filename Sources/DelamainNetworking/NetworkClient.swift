@@ -203,10 +203,12 @@ public extension URLSessionNetworkClient {
     /// Creates a client with common configuration.
     /// - Parameters:
     ///   - baseHeaders: Headers to add to every request.
+    ///   - timeoutInterval: Optional default timeout for all requests (overrides endpoint defaults).
     ///   - enableLogging: Enable request/response logging.
     ///   - retryConfiguration: Optional retry configuration with exponential backoff.
     static func configured(
         baseHeaders: [String: String] = [:],
+        timeoutInterval: TimeInterval? = nil,
         enableLogging: Bool = false,
         retryConfiguration: RetryConfiguration? = nil
     ) -> URLSessionNetworkClient {
@@ -215,6 +217,10 @@ public extension URLSessionNetworkClient {
 
         if !baseHeaders.isEmpty {
             interceptors.append(HeaderInterceptor(headers: baseHeaders))
+        }
+
+        if let timeout = timeoutInterval {
+            interceptors.append(TimeoutInterceptor(timeoutInterval: timeout))
         }
 
         if enableLogging {

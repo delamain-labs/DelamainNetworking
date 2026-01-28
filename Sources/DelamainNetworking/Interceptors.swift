@@ -115,7 +115,26 @@ public struct LoggingResponseHandler: ResponseHandler {
     }
 }
 
-// MARK: - Retry Interceptor
+// MARK: - Timeout Interceptor
+
+/// Overrides the timeout interval for all requests.
+public struct TimeoutInterceptor: RequestInterceptor {
+    private let timeoutInterval: TimeInterval
+
+    /// Creates a timeout interceptor.
+    /// - Parameter timeoutInterval: The timeout interval in seconds.
+    public init(timeoutInterval: TimeInterval) {
+        self.timeoutInterval = timeoutInterval
+    }
+
+    public func intercept(_ request: URLRequest) async throws -> URLRequest {
+        var modifiedRequest = request
+        modifiedRequest.timeoutInterval = timeoutInterval
+        return modifiedRequest
+    }
+}
+
+// MARK: - Retry Configuration
 
 /// Configuration for retry behavior.
 public struct RetryConfiguration: Sendable {
