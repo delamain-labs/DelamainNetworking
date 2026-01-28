@@ -10,6 +10,28 @@ struct TestUser: Codable, Sendable, Equatable {
     let email: String
 }
 
+// MARK: - DTO Mapping Test Models
+
+struct UserDTO: Codable, Sendable, DomainMappable {
+    let user_id: Int
+    let display_name: String
+    let email_address: String
+    
+    func toDomain() -> DomainUser {
+        DomainUser(
+            id: user_id,
+            name: display_name,
+            email: email_address
+        )
+    }
+}
+
+struct DomainUser: Equatable {
+    let id: Int
+    let name: String
+    let email: String
+}
+
 // MARK: - Test Endpoint
 
 enum TestAPI: Endpoint {
@@ -81,6 +103,21 @@ struct NetworkClientTests {
         await #expect(throws: NetworkError.self) {
             let _: TestUser = try await mockClient.request(TestAPI.getUser(id: 999))
         }
+    }
+    
+    @Test("Request maps DTO to domain model")
+    func requestMapsDTOToDomainModel() async throws {
+        let mockClient = MockNetworkClient()
+        let dto = UserDTO(user_id: 42, display_name: "Test User", email_address: "test@example.com")
+        
+        try await mockClient.register(path: "/users/42", json: dto)
+        
+        let domainUser = try await mockClient.request(
+            TestAPI.getUser(id: 42),
+            mapping: UserDTO.self
+        )
+        
+        #expect(domainUser == DomainUser(id: 42, name: "Test User", email: "test@example.com"))
     }
     
     @Test("SimpleEndpoint constructs correct URL")
