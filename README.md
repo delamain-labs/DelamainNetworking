@@ -12,7 +12,8 @@ A modern, async/await networking library for Swift. Clean, type-safe, and testab
 - 🚀 **Pure Async/Await** — Built entirely on Swift Concurrency
 - 🔒 **Type-Safe** — Generic request methods with Codable support
 - 🧪 **Testable** — Protocol-based design with mock client included
-- 🔌 **Interceptors** — Easily add authentication, logging, retry logic
+- 🔌 **Interceptors** — Easily add authentication, logging, and custom logic
+- 📊 **Metrics Collection** — Track request duration, success rate, bytes transferred
 - ✅ **Swift 6 Ready** — Full Sendable conformance, no data races
 
 ## Installation
@@ -216,6 +217,42 @@ Use `MockNetworkClient` for tests and SwiftUI previews:
         ))
 }
 ```
+
+## Metrics Collection
+
+Track request performance and statistics:
+
+```swift
+// Create a metrics collector
+let metrics = InMemoryMetricsCollector()
+
+// Configure client with metrics
+let client = URLSessionNetworkClient.configured(
+    enableLogging: true,
+    metricsCollector: metrics
+)
+
+// Make requests...
+let user: User = try await client.request(endpoint)
+
+// Get statistics
+let stats = await metrics.getStatistics()
+print("Total requests: \(stats.totalRequests)")
+print("Success rate: \(stats.successRate * 100)%")
+print("Average duration: \(stats.averageDuration)s")
+print("Bytes sent: \(stats.totalBytesSent)")
+print("Bytes received: \(stats.totalBytesReceived)")
+```
+
+**Collected Metrics:**
+- Request duration
+- HTTP status codes
+- Success/failure rates
+- Bytes sent/received per request
+- Per-endpoint statistics
+
+**Custom Collectors:**
+Implement `MetricsCollector` protocol to send metrics to your analytics service, logging system, or monitoring dashboard.
 
 ## Error Handling
 

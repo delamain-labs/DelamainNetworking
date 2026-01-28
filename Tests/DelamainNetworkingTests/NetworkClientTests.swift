@@ -227,3 +227,101 @@ struct NetworkErrorTests {
         }
     }
 }
+
+@Suite("Metrics Tests")
+struct MetricsTests {
+
+    @Test("InMemoryMetricsCollector records metrics")
+    func metricsCollectorRecordsMetrics() async {
+        let collector = InMemoryMetricsCollector()
+
+        let metric = RequestMetrics(
+            endpoint: "/test",
+            statusCode: 200,
+            duration: 1.5,
+            bytesSent: 100,
+            bytesReceived: 200,
+            isSuccess: true
+        )
+
+        await collector.record(metric)
+
+        let allMetrics = await collector.getAllMetrics()
+        #expect(allMetrics.count == 1)
+        #expect(allMetrics.first?.endpoint == "/test")
+    }
+
+    @Test("Metrics statistics are calculated correctly")
+    func metricsStatisticsCalculation() async {
+        let collector = InMemoryMetricsCollector()
+
+        // Record 2 successful and 1 failed request
+        await collector.record(RequestMetrics(
+            endpoint: "/success1",
+            statusCode: 200,
+            duration: 1.0,
+            bytesSent: 100,
+            bytesReceived: 200,
+            isSuccess: true
+        ))
+
+        await collector.record(RequestMetrics(
+            endpoint: "/success2",
+            statusCode: 201,
+            duration: 2.0,
+            bytesSent: 150,
+            bytesReceived: 300,
+            isSuccess: true
+        ))
+
+        await collector.record(RequestMetrics(
+            endpoint: "/failure",
+            statusCode: 500,
+            duration: 0.5,
+            bytesSent: 50,
+            bytesReceived: 100,
+            isSuccess: false
+        ))
+
+        let stats = await collector.getStatistics()
+
+        #expect(stats.totalRequests == 3)
+        #expect(stats.successfulRequests == 2)
+        #expect(stats.failedRequests == 1)
+        #expect(stats.successRate == 2.0 / 3.0)
+        #expect(stats.averageDuration == 1.1666666666666667)  // (1.0 + 2.0 + 0.5) / 3
+        #expect(stats.totalBytesSent == 300)
+        #expect(stats.totalBytesReceived == 600)
+    }
+
+    @Test("Client can be configured with metrics collector")
+    func clientWithMetricsCollector() async {
+        let collector = InMemoryMetricsCollector()
+        _ = URLSessionNetworkClient.configured(
+            metricsCollector: collector
+        )
+
+        // Client created successfully with metrics collector
+        let stats = await collector.getStatistics()
+        #expect(stats.totalRequests == 0)  // No requests made yet
+    }
+
+    @Test("Metrics collector can be reset")
+    func metricsCollectorReset() async {
+        let collector = InMemoryMetricsCollector()
+
+        await collector.record(RequestMetrics(
+            endpoint: "/test",
+            statusCode: 200,
+            duration: 1.0,
+            bytesSent: 100,
+            bytesReceived: 200,
+            isSuccess: true
+        ))
+
+        await collector.reset()
+
+        let allMetrics = await collector.getAllMetrics()
+        #expect(allMetrics.isEmpty)
+    }
+}

@@ -59,20 +59,24 @@ public actor URLSessionNetworkClient: NetworkClient {
     private let session: URLSession
     private let interceptors: [any RequestInterceptor]
     private let responseHandlers: [any ResponseHandler]
+    private let metricsCollector: (any MetricsCollector)?
 
     /// Creates a new URLSession-based network client.
     /// - Parameters:
     ///   - session: The URLSession to use. Defaults to `.shared`.
     ///   - interceptors: Request interceptors to apply before each request.
     ///   - responseHandlers: Response handlers to process responses.
+    ///   - metricsCollector: Optional metrics collector for tracking request statistics.
     public init(
         session: URLSession = .shared,
         interceptors: [any RequestInterceptor] = [],
-        responseHandlers: [any ResponseHandler] = []
+        responseHandlers: [any ResponseHandler] = [],
+        metricsCollector: (any MetricsCollector)? = nil
     ) {
         self.session = session
         self.interceptors = interceptors
         self.responseHandlers = responseHandlers
+        self.metricsCollector = metricsCollector
     }
 
     public func request<T: Decodable & Sendable>(
@@ -100,19 +104,46 @@ public actor URLSessionNetworkClient: NetworkClient {
             request = try await interceptor.intercept(request)
         }
 
+        // Start metrics tracking
+        let startTime = Date()
+        let endpointPath = request.url?.path ?? "unknown"
+        let bytesSent = Int64(request.httpBody?.count ?? 0)
+
         let (data, response): (Data, URLResponse)
 
         do {
             (data, response) = try await session.data(for: request)
         } catch let error as URLError where error.code == .cancelled {
+            await recordFailureMetrics(
+                endpoint: endpointPath,
+                startTime: startTime,
+                bytesSent: bytesSent
+            )
             throw NetworkError.cancelled
         } catch {
+            await recordFailureMetrics(
+                endpoint: endpointPath,
+                startTime: startTime,
+                bytesSent: bytesSent
+            )
             throw NetworkError.networkError(error)
         }
 
-        // Process response through handlers
+        // Add metrics handler if collector is configured
+        var handlers = responseHandlers
+        if let collector = metricsCollector {
+            let metricsHandler = MetricsResponseHandler(
+                collector: collector,
+                startTime: startTime,
+                endpoint: endpointPath,
+                bytesSent: bytesSent
+            )
+            handlers.append(metricsHandler)
+        }
+
+        // Process response through handlers (including metrics)
         var processedData = data
-        for handler in responseHandlers {
+        for handler in handlers {
             processedData = try await handler.handle(processedData, response: response)
         }
 
@@ -125,6 +156,27 @@ public actor URLSessionNetworkClient: NetworkClient {
 
         return processedData
     }
+
+    /// Records metrics for failed requests.
+    private func recordFailureMetrics(
+        endpoint: String,
+        startTime: Date,
+        bytesSent: Int64
+    ) async {
+        guard let collector = metricsCollector else { return }
+
+        let duration = Date().timeIntervalSince(startTime)
+        let metrics = RequestMetrics(
+            endpoint: endpoint,
+            statusCode: nil,
+            duration: duration,
+            bytesSent: bytesSent,
+            bytesReceived: 0,
+            isSuccess: false,
+            timestamp: startTime
+        )
+        await collector.record(metrics)
+    }
 }
 
 // MARK: - Convenience Factory
@@ -133,10 +185,12 @@ public extension URLSessionNetworkClient {
     /// Creates a client with common configuration.
     /// - Parameters:
     ///   - baseHeaders: Headers to add to every request.
-    ///   - logger: Optional logger for request/response logging.
+    ///   - enableLogging: Enable request/response logging.
+    ///   - metricsCollector: Optional metrics collector for tracking request statistics.
     static func configured(
         baseHeaders: [String: String] = [:],
-        enableLogging: Bool = false
+        enableLogging: Bool = false,
+        metricsCollector: (any MetricsCollector)? = nil
     ) -> URLSessionNetworkClient {
         var interceptors: [any RequestInterceptor] = []
         var handlers: [any ResponseHandler] = []
@@ -152,7 +206,8 @@ public extension URLSessionNetworkClient {
 
         return URLSessionNetworkClient(
             interceptors: interceptors,
-            responseHandlers: handlers
+            responseHandlers: handlers,
+            metricsCollector: metricsCollector
         )
     }
 }
