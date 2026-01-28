@@ -15,6 +15,8 @@ A modern, async/await networking library for Swift. Clean, type-safe, and testab
 - 🔌 **Interceptors** — Easily add authentication, logging, retry logic
 - ✅ **Swift 6 Ready** — Full Sendable conformance, no data races
 
+> 📍 See our [Roadmap](ROADMAP.md) for upcoming features
+
 ## Installation
 
 ### Swift Package Manager
