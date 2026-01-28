@@ -41,8 +41,6 @@ Power features for complex apps.
 - [ ] **Multipart form data** — File uploads with progress tracking
 - [ ] **Download tasks** — Large file downloads with progress & resume
 - [ ] **Upload tasks** — Background uploads
-- [ ] **Request queuing** — Priority queues, concurrency limits
-- [ ] **Caching layer** — Configurable HTTP cache with offline support
 - [ ] **Certificate pinning** — SSL pinning for security-critical apps
 
 ---
@@ -53,8 +51,6 @@ Taking DX to the next level.
 
 - [ ] **Swift Macros** — Generate endpoint enums from OpenAPI specs
 - [ ] **Result builders** — DSL for building complex requests
-- [ ] **Xcode previews integration** — Better SwiftUI preview support
-- [ ] **Network debugging CLI** — Inspect requests from terminal
 - [ ] **Combine bridge** — Publishers for Combine users
 - [ ] **Documentation** — Full DocC documentation site
 
@@ -68,7 +64,6 @@ Things we're considering but haven't committed to:
 - WebSocket client
 - gRPC support
 - Request mocking server (for UI tests)
-- Charles/Proxyman integration helpers
 
 ---
 
