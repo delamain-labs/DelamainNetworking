@@ -70,8 +70,8 @@ public struct BearerTokenInterceptor: RequestInterceptor {
 
 /// Configuration for request/response logging with privacy controls.
 public struct LoggingConfiguration: Sendable {
-    /// Headers to redact (e.g., "Authorization", "Cookie").
-    public let redactedHeaders: Set<String>
+    /// Headers to redact (stored as lowercase for case-insensitive matching).
+    private let redactedHeadersLowercased: Set<String>
 
     /// Maximum body size to log (in bytes). Bodies larger than this are truncated.
     public let maxBodyLogSize: Int
@@ -88,10 +88,16 @@ public struct LoggingConfiguration: Sendable {
         logRequestBody: Bool = true,
         logResponseBody: Bool = true
     ) {
-        self.redactedHeaders = redactedHeaders
+        // Store as lowercase for case-insensitive matching (HTTP headers are case-insensitive)
+        self.redactedHeadersLowercased = Set(redactedHeaders.map { $0.lowercased() })
         self.maxBodyLogSize = maxBodyLogSize
         self.logRequestBody = logRequestBody
         self.logResponseBody = logResponseBody
+    }
+
+    /// Checks if a header should be redacted (case-insensitive).
+    public func shouldRedact(header: String) -> Bool {
+        redactedHeadersLowercased.contains(header.lowercased())
     }
 
     public static let `default` = Self()
@@ -130,10 +136,10 @@ public struct LoggingInterceptor: RequestInterceptor {
 
         logger.info("➡️ \(method) \(urlString)")
 
-        // Log headers with redaction
+        // Log headers with redaction (case-insensitive)
         if let headers = request.allHTTPHeaderFields, !headers.isEmpty {
             for (key, value) in headers.sorted(by: { $0.key < $1.key }) {
-                let redactedValue = configuration.redactedHeaders.contains(key) ? "<redacted>" : value
+                let redactedValue = configuration.shouldRedact(header: key) ? "<redacted>" : value
                 logger.debug("   \(key): \(redactedValue)")
             }
         }
@@ -180,11 +186,11 @@ public struct LoggingResponseHandler: ResponseHandler {
 
             logger.info("\(emoji) \(statusCode) \(urlString)")
 
-            // Log response headers with redaction
+            // Log response headers with redaction (case-insensitive)
             for (key, value) in httpResponse.allHeaderFields.sorted(by: { "\($0.key)" < "\($1.key)" }) {
                 let headerName = "\(key)"
                 let headerValue = "\(value)"
-                let redactedValue = configuration.redactedHeaders.contains(headerName) ? "<redacted>" : headerValue
+                let redactedValue = configuration.shouldRedact(header: headerName) ? "<redacted>" : headerValue
                 logger.debug("   \(headerName): \(redactedValue)")
             }
         }
