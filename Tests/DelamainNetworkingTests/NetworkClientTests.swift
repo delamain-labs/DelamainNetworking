@@ -227,3 +227,50 @@ struct NetworkErrorTests {
         }
     }
 }
+
+@Suite("Retry Tests")
+struct RetryTests {
+
+    @Test("Retry configuration defaults are reasonable")
+    func retryConfigurationDefaults() {
+        let config = RetryConfiguration.default
+
+        #expect(config.maxRetries == 3)
+        #expect(config.baseDelay == 1.0)
+        #expect(config.maxDelay == 30.0)
+        #expect(config.retryableStatusCodes.contains(503))
+        #expect(config.retryableStatusCodes.contains(429))
+        #expect(!config.retryableStatusCodes.contains(404))
+    }
+
+    @Test("Retry configuration can be customized")
+    func retryConfigurationCustomization() {
+        let config = RetryConfiguration(
+            maxRetries: 5,
+            baseDelay: 2.0,
+            maxDelay: 60.0,
+            retryableStatusCodes: [500, 502]
+        )
+
+        #expect(config.maxRetries == 5)
+        #expect(config.baseDelay == 2.0)
+        #expect(config.maxDelay == 60.0)
+        #expect(config.retryableStatusCodes.count == 2)
+    }
+
+    @Test("Client can be created with retry configuration")
+    func clientWithRetryConfiguration() {
+        let retryConfig = RetryConfiguration(
+            maxRetries: 2,
+            baseDelay: 0.5
+        )
+
+        let client = URLSessionNetworkClient.configured(
+            enableLogging: true,
+            retryConfiguration: retryConfig
+        )
+
+        // Client should be created successfully with retry config
+        #expect(client != nil)
+    }
+}
