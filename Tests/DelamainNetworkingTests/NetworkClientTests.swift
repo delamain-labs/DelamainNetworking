@@ -327,6 +327,73 @@ struct TimeoutTests {
     }
 }
 
+@Suite("Logging Tests")
+struct LoggingTests {
+
+    @Test("LoggingConfiguration has sensible defaults")
+    func loggingConfigurationDefaults() {
+        let config = LoggingConfiguration.default
+
+        #expect(config.shouldRedact(header: "Authorization"))
+        #expect(config.shouldRedact(header: "Cookie"))
+        #expect(config.maxBodyLogSize == 1024)
+        #expect(config.logRequestBody == true)
+        #expect(config.logResponseBody == true)
+    }
+
+    @Test("Production logging configuration is strict")
+    func productionLoggingConfiguration() {
+        let config = LoggingConfiguration.production
+
+        #expect(config.shouldRedact(header: "Authorization"))
+        #expect(config.maxBodyLogSize == 0)
+        #expect(config.logRequestBody == false)
+        #expect(config.logResponseBody == false)
+    }
+
+    @Test("Header redaction is case-insensitive")
+    func headerRedactionCaseInsensitive() {
+        let config = LoggingConfiguration(
+            redactedHeaders: ["Authorization", "X-API-Key"]
+        )
+
+        // Same case
+        #expect(config.shouldRedact(header: "Authorization"))
+        #expect(config.shouldRedact(header: "X-API-Key"))
+
+        // Different cases (HTTP headers are case-insensitive)
+        #expect(config.shouldRedact(header: "authorization"))
+        #expect(config.shouldRedact(header: "AUTHORIZATION"))
+        #expect(config.shouldRedact(header: "x-api-key"))
+        #expect(config.shouldRedact(header: "X-Api-Key"))
+
+        // Non-redacted headers
+        #expect(!config.shouldRedact(header: "Content-Type"))
+        #expect(!config.shouldRedact(header: "Accept"))
+    }
+
+    @Test("LoggingInterceptor can be created with custom configuration")
+    func loggingInterceptorCustomConfiguration() {
+        let config = LoggingConfiguration(
+            redactedHeaders: ["X-Custom-Token"],
+            maxBodyLogSize: 512
+        )
+
+        let interceptor = LoggingInterceptor(configuration: config)
+        #expect(interceptor != nil)
+    }
+
+    @Test("Client can be configured with logging")
+    func clientWithLogging() {
+        let client = URLSessionNetworkClient.configured(
+            enableLogging: true,
+            loggingConfiguration: .production
+        )
+
+        #expect(client != nil)
+    }
+}
+
 @Suite("Mock Sequence Tests")
 struct MockSequenceTests {
 
@@ -372,3 +439,5 @@ struct MockSequenceTests {
         }
     }
 }
+
+// NOTE: Metrics tests will be added when PR #7 (metrics feature) is merged

@@ -66,25 +66,96 @@ public struct BearerTokenInterceptor: RequestInterceptor {
     }
 }
 
+// MARK: - Logging Configuration
+
+/// Configuration for request/response logging with privacy controls.
+public struct LoggingConfiguration: Sendable {
+    /// Headers to redact (stored as lowercase for case-insensitive matching).
+    private let redactedHeadersLowercased: Set<String>
+
+    /// Maximum body size to log (in bytes). Bodies larger than this are truncated.
+    public let maxBodyLogSize: Int
+
+    /// Whether to log request bodies.
+    public let logRequestBody: Bool
+
+    /// Whether to log response bodies.
+    public let logResponseBody: Bool
+
+    public init(
+        redactedHeaders: Set<String> = ["Authorization", "Cookie", "Set-Cookie", "X-API-Key", "X-Auth-Token"],
+        maxBodyLogSize: Int = 1024,
+        logRequestBody: Bool = true,
+        logResponseBody: Bool = true
+    ) {
+        // Store as lowercase for case-insensitive matching (HTTP headers are case-insensitive)
+        self.redactedHeadersLowercased = Set(redactedHeaders.map { $0.lowercased() })
+        self.maxBodyLogSize = maxBodyLogSize
+        self.logRequestBody = logRequestBody
+        self.logResponseBody = logResponseBody
+    }
+
+    /// Checks if a header should be redacted (case-insensitive).
+    public func shouldRedact(header: String) -> Bool {
+        redactedHeadersLowercased.contains(header.lowercased())
+    }
+
+    public static let `default` = Self()
+
+    /// Safe default for production: minimal logging with strict redaction.
+    public static let production = Self(
+        redactedHeaders: [
+            "Authorization", "Cookie", "Set-Cookie",
+            "X-API-Key", "X-Auth-Token", "X-Access-Token"
+        ],
+        maxBodyLogSize: 0,
+        logRequestBody: false,
+        logResponseBody: false
+    )
+}
+
 // MARK: - Logging Interceptor
 
-/// Logs requests for debugging.
+/// Logs requests for debugging with privacy-aware structured logging.
 public struct LoggingInterceptor: RequestInterceptor {
     private let logger: Logger
+    private let configuration: LoggingConfiguration
 
-    public init(subsystem: String = "DelamainNetworking", category: String = "Request") {
+    public init(
+        subsystem: String = "DelamainNetworking",
+        category: String = "Request",
+        configuration: LoggingConfiguration = .default
+    ) {
         self.logger = Logger(subsystem: subsystem, category: category)
+        self.configuration = configuration
     }
 
     public func intercept(_ request: URLRequest) async throws -> URLRequest {
-        logger.debug("➡️ \(request.httpMethod ?? "?") \(request.url?.absoluteString ?? "?")")
+        let method = request.httpMethod ?? "UNKNOWN"
+        let urlString = request.url?.absoluteString ?? "unknown"
 
+        logger.info("➡️ \(method) \(urlString)")
+
+        // Log headers with redaction (case-insensitive)
         if let headers = request.allHTTPHeaderFields, !headers.isEmpty {
-            logger.debug("   Headers: \(headers.map { "\($0.key): \($0.value)" }.joined(separator: ", "))")
+            for (key, value) in headers.sorted(by: { $0.key < $1.key }) {
+                let redactedValue = configuration.shouldRedact(header: key) ? "<redacted>" : value
+                logger.debug("   \(key): \(redactedValue)")
+            }
         }
 
-        if let body = request.httpBody, let bodyString = String(data: body, encoding: .utf8) {
-            logger.debug("   Body: \(bodyString.prefix(500))")
+        // Log body if enabled
+        if configuration.logRequestBody, let body = request.httpBody {
+            let bodySize = body.count
+            if bodySize <= configuration.maxBodyLogSize {
+                if let bodyString = String(data: body, encoding: .utf8) {
+                    logger.debug("   Body: \(bodyString)")
+                } else {
+                    logger.debug("   Body: <binary \(bodySize) bytes>")
+                }
+            } else {
+                logger.debug("   Body: <\(bodySize) bytes, truncated>")
+            }
         }
 
         return request
@@ -93,22 +164,49 @@ public struct LoggingInterceptor: RequestInterceptor {
 
 // MARK: - Logging Response Handler
 
-/// Logs responses for debugging.
+/// Logs responses for debugging with privacy-aware structured logging.
 public struct LoggingResponseHandler: ResponseHandler {
     private let logger: Logger
+    private let configuration: LoggingConfiguration
 
-    public init(subsystem: String = "DelamainNetworking", category: String = "Response") {
+    public init(
+        subsystem: String = "DelamainNetworking",
+        category: String = "Response",
+        configuration: LoggingConfiguration = .default
+    ) {
         self.logger = Logger(subsystem: subsystem, category: category)
+        self.configuration = configuration
     }
 
     public func handle(_ data: Data, response: URLResponse) async throws -> Data {
         if let httpResponse = response as? HTTPURLResponse {
-            let emoji = (200...299).contains(httpResponse.statusCode) ? "✅" : "❌"
-            logger.debug("\(emoji) \(httpResponse.statusCode) \(response.url?.absoluteString ?? "?")")
+            let statusCode = httpResponse.statusCode
+            let emoji = (200...299).contains(statusCode) ? "✅" : "❌"
+            let urlString = response.url?.absoluteString ?? "unknown"
+
+            logger.info("\(emoji) \(statusCode) \(urlString)")
+
+            // Log response headers with redaction (case-insensitive)
+            for (key, value) in httpResponse.allHeaderFields.sorted(by: { "\($0.key)" < "\($1.key)" }) {
+                let headerName = "\(key)"
+                let headerValue = "\(value)"
+                let redactedValue = configuration.shouldRedact(header: headerName) ? "<redacted>" : headerValue
+                logger.debug("   \(headerName): \(redactedValue)")
+            }
         }
 
-        if let bodyString = String(data: data, encoding: .utf8) {
-            logger.debug("   Response: \(bodyString.prefix(500))")
+        // Log body if enabled
+        if configuration.logResponseBody {
+            let bodySize = data.count
+            if bodySize <= configuration.maxBodyLogSize {
+                if let bodyString = String(data: data, encoding: .utf8) {
+                    logger.debug("   Response: \(bodyString)")
+                } else {
+                    logger.debug("   Response: <binary \(bodySize) bytes>")
+                }
+            } else {
+                logger.debug("   Response: <\(bodySize) bytes, truncated>")
+            }
         }
 
         return data

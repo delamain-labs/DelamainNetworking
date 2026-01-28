@@ -134,11 +134,20 @@ let authInterceptor = BearerTokenInterceptor {
     try await authManager.getValidToken()
 }
 
-// Log all requests
+// Log all requests (basic)
 let loggingInterceptor = LoggingInterceptor()
 
 // Override timeout for all requests
 let timeoutInterceptor = TimeoutInterceptor(timeoutInterval: 60)
+
+// Log with custom configuration and redaction
+let secureLogging = LoggingConfiguration(
+    redactedHeaders: ["Authorization", "X-API-Key"],
+    maxBodyLogSize: 512,
+    logRequestBody: true,
+    logResponseBody: true
+)
+let interceptor = LoggingInterceptor(configuration: secureLogging)
 ```
 
 ## Timeouts
@@ -171,6 +180,43 @@ let endpoint = SimpleEndpoint(
 ```
 
 **Default:** 30 seconds (if not specified)
+
+## Logging & Privacy
+
+Privacy-aware structured logging with automatic redaction:
+
+```swift
+// Default configuration: balances debugging with privacy
+let client = URLSessionNetworkClient.configured(
+    enableLogging: true,
+    loggingConfiguration: .default  // Redacts auth headers, logs bodies up to 1KB
+)
+
+// Production configuration: minimal logging, strict redaction
+let prodClient = URLSessionNetworkClient.configured(
+    enableLogging: true,
+    loggingConfiguration: .production  // No body logging, redacts all sensitive headers
+)
+
+// Custom configuration
+let custom = LoggingConfiguration(
+    redactedHeaders: ["Authorization", "Cookie", "X-API-Key"],  // Headers to hide
+    maxBodyLogSize: 2048,              // Max bytes to log (0 = no body logging)
+    logRequestBody: true,              // Enable request body logging
+    logResponseBody: true              // Enable response body logging
+)
+```
+
+**Default Redacted Headers:**
+- `Authorization`
+- `Cookie`, `Set-Cookie`
+- `X-API-Key`, `X-Auth-Token`
+
+**Logging Behavior:**
+- Sensitive headers show `<redacted>` in logs
+- Large bodies are truncated with size indicator
+- Binary bodies show `<binary N bytes>`
+- Uses `os.Logger` for structured, efficient logging
 
 ## Response Handlers
 
