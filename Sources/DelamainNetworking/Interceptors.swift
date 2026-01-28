@@ -28,11 +28,11 @@ public protocol ResponseHandler: Sendable {
 /// Adds headers to every request.
 public struct HeaderInterceptor: RequestInterceptor {
     private let headers: [String: String]
-    
+
     public init(headers: [String: String]) {
         self.headers = headers
     }
-    
+
     public func intercept(_ request: URLRequest) async throws -> URLRequest {
         var modifiedRequest = request
         for (key, value) in headers {
@@ -47,17 +47,17 @@ public struct HeaderInterceptor: RequestInterceptor {
 /// Adds a Bearer token to the Authorization header.
 public struct BearerTokenInterceptor: RequestInterceptor {
     private let tokenProvider: @Sendable () async throws -> String
-    
+
     /// Creates an interceptor with a static token.
     public init(token: String) {
         self.tokenProvider = { token }
     }
-    
+
     /// Creates an interceptor with a dynamic token provider.
     public init(tokenProvider: @escaping @Sendable () async throws -> String) {
         self.tokenProvider = tokenProvider
     }
-    
+
     public func intercept(_ request: URLRequest) async throws -> URLRequest {
         var modifiedRequest = request
         let token = try await tokenProvider()
@@ -71,22 +71,22 @@ public struct BearerTokenInterceptor: RequestInterceptor {
 /// Logs requests for debugging.
 public struct LoggingInterceptor: RequestInterceptor {
     private let logger: Logger
-    
+
     public init(subsystem: String = "DelamainNetworking", category: String = "Request") {
         self.logger = Logger(subsystem: subsystem, category: category)
     }
-    
+
     public func intercept(_ request: URLRequest) async throws -> URLRequest {
         logger.debug("➡️ \(request.httpMethod ?? "?") \(request.url?.absoluteString ?? "?")")
-        
+
         if let headers = request.allHTTPHeaderFields, !headers.isEmpty {
             logger.debug("   Headers: \(headers.map { "\($0.key): \($0.value)" }.joined(separator: ", "))")
         }
-        
+
         if let body = request.httpBody, let bodyString = String(data: body, encoding: .utf8) {
             logger.debug("   Body: \(bodyString.prefix(500))")
         }
-        
+
         return request
     }
 }
@@ -96,21 +96,21 @@ public struct LoggingInterceptor: RequestInterceptor {
 /// Logs responses for debugging.
 public struct LoggingResponseHandler: ResponseHandler {
     private let logger: Logger
-    
+
     public init(subsystem: String = "DelamainNetworking", category: String = "Response") {
         self.logger = Logger(subsystem: subsystem, category: category)
     }
-    
+
     public func handle(_ data: Data, response: URLResponse) async throws -> Data {
         if let httpResponse = response as? HTTPURLResponse {
             let emoji = (200...299).contains(httpResponse.statusCode) ? "✅" : "❌"
             logger.debug("\(emoji) \(httpResponse.statusCode) \(response.url?.absoluteString ?? "?")")
         }
-        
+
         if let bodyString = String(data: data, encoding: .utf8) {
             logger.debug("   Response: \(bodyString.prefix(500))")
         }
-        
+
         return data
     }
 }
@@ -123,7 +123,7 @@ public struct RetryConfiguration: Sendable {
     public let baseDelay: TimeInterval
     public let maxDelay: TimeInterval
     public let retryableStatusCodes: Set<Int>
-    
+
     public init(
         maxRetries: Int = 3,
         baseDelay: TimeInterval = 1.0,
@@ -135,6 +135,6 @@ public struct RetryConfiguration: Sendable {
         self.maxDelay = maxDelay
         self.retryableStatusCodes = retryableStatusCodes
     }
-    
-    public static let `default` = RetryConfiguration()
+
+    public static let `default` = Self()
 }

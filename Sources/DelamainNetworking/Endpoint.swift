@@ -15,25 +15,25 @@ public enum HTTPMethod: String, Sendable {
 public protocol Endpoint: Sendable {
     /// The base URL for the API (e.g., "https://api.example.com").
     var baseURL: URL { get }
-    
+
     /// The path component of the URL (e.g., "/users/123").
     var path: String { get }
-    
+
     /// The HTTP method for this endpoint.
     var method: HTTPMethod { get }
-    
+
     /// HTTP headers to include in the request.
     var headers: [String: String] { get }
-    
+
     /// Query parameters to append to the URL.
     var queryItems: [URLQueryItem]? { get }
-    
+
     /// The body data for the request (for POST, PUT, PATCH).
     var body: Data? { get }
-    
+
     /// The cache policy for this request.
     var cachePolicy: URLRequest.CachePolicy { get }
-    
+
     /// The timeout interval for this request.
     var timeoutInterval: TimeInterval { get }
 }
@@ -44,39 +44,39 @@ public extension Endpoint {
     var headers: [String: String] {
         ["Content-Type": "application/json", "Accept": "application/json"]
     }
-    
+
     var queryItems: [URLQueryItem]? { nil }
-    
+
     var body: Data? { nil }
-    
+
     var cachePolicy: URLRequest.CachePolicy { .useProtocolCachePolicy }
-    
+
     var timeoutInterval: TimeInterval { 30 }
-    
+
     /// Constructs the full URL for this endpoint.
     var url: URL? {
         var components = URLComponents(url: baseURL.appendingPathComponent(path), resolvingAgainstBaseURL: true)
         components?.queryItems = queryItems?.isEmpty == false ? queryItems : nil
         return components?.url
     }
-    
+
     /// Constructs a URLRequest for this endpoint.
     func makeRequest() throws -> URLRequest {
         guard let url = url else {
             throw NetworkError.invalidURL
         }
-        
+
         var request = URLRequest(url: url)
         request.httpMethod = method.rawValue
         request.cachePolicy = cachePolicy
         request.timeoutInterval = timeoutInterval
-        
+
         for (key, value) in headers {
             request.setValue(value, forHTTPHeaderField: key)
         }
-        
+
         request.httpBody = body
-        
+
         return request
     }
 }
@@ -93,7 +93,7 @@ public struct SimpleEndpoint: Endpoint {
     public let body: Data?
     public let cachePolicy: URLRequest.CachePolicy
     public let timeoutInterval: TimeInterval
-    
+
     public init(
         baseURL: URL,
         path: String,
@@ -113,7 +113,7 @@ public struct SimpleEndpoint: Endpoint {
         self.cachePolicy = cachePolicy
         self.timeoutInterval = timeoutInterval
     }
-    
+
     /// Creates an endpoint with a JSON-encodable body.
     public init<T: Encodable>(
         baseURL: URL,

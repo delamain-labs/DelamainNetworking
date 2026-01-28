@@ -4,25 +4,25 @@ import Foundation
 public enum NetworkError: Error, Sendable {
     /// The URL could not be constructed from the endpoint.
     case invalidURL
-    
+
     /// The request failed with an HTTP error status code.
     case httpError(statusCode: Int, data: Data?)
-    
+
     /// The response could not be decoded into the expected type.
     case decodingError(Error)
-    
+
     /// The request could not be encoded.
     case encodingError(Error)
-    
+
     /// The network request failed.
     case networkError(Error)
-    
+
     /// No data was returned when data was expected.
     case noData
-    
+
     /// The request was cancelled.
     case cancelled
-    
+
     /// A custom error with a message.
     case custom(String)
 }

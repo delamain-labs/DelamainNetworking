@@ -2,6 +2,7 @@
 
 A modern, async/await networking library for Swift. Clean, type-safe, and testable.
 
+[![CI](https://github.com/delamain-labs/DelamainNetworking/actions/workflows/ci.yml/badge.svg)](https://github.com/delamain-labs/DelamainNetworking/actions/workflows/ci.yml)
 [![Swift 6.0](https://img.shields.io/badge/Swift-6.0-orange.svg)](https://swift.org)
 [![Platforms](https://img.shields.io/badge/Platforms-iOS%2017%20|%20macOS%2014-blue.svg)](https://developer.apple.com)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
@@ -246,6 +247,38 @@ do {
 - iOS 17.0+ / macOS 14.0+ / watchOS 10.0+ / tvOS 17.0+ / visionOS 1.0+
 - Swift 6.0+
 - Xcode 16.0+
+
+## Development
+
+### Setup
+
+```bash
+# Clone the repo
+git clone https://github.com/delamain-labs/DelamainNetworking.git
+cd DelamainNetworking
+
+# Install git hooks (runs SwiftLint on commit)
+./scripts/install-hooks.sh
+
+# Install SwiftLint if needed
+brew install swiftlint
+```
+
+### Running Tests
+
+```bash
+swift test
+```
+
+### Linting
+
+```bash
+# Check for issues
+swiftlint lint
+
+# Auto-fix issues
+swiftlint --fix
+```
 
 ## License
 
