@@ -143,6 +143,51 @@ Response handlers process responses before they're returned:
 let loggingHandler = LoggingResponseHandler()
 ```
 
+## DTO Mapping
+
+Keep your API responses separate from domain models with `DomainMappable`:
+
+```swift
+// DTO matches API response exactly
+struct UserDTO: Decodable, DomainMappable {
+    let user_id: String
+    let display_name: String?
+    let created_at: String
+    
+    // Transform to your clean domain model
+    func toDomain() -> User {
+        User(
+            id: user_id,
+            name: display_name ?? "Anonymous",
+            createdAt: ISO8601DateFormatter().date(from: created_at) ?? .now
+        )
+    }
+}
+
+// Domain model - what your app actually uses
+struct User {
+    let id: String
+    let name: String
+    let createdAt: Date
+}
+```
+
+Use the mapping variant of `request`:
+
+```swift
+// Returns User, not UserDTO
+let user = try await client.request(
+    API.getUser(id: "123"),
+    mapping: UserDTO.self
+)
+```
+
+**Why use this pattern?**
+- API changes don't ripple through your codebase
+- Domain models stay clean (no weird optionals, better naming)
+- Codable noise isolated to DTOs
+- Mapping logic is testable in isolation
+
 ## Testing
 
 Use `MockNetworkClient` for tests and SwiftUI previews:

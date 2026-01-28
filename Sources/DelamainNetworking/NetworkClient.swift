@@ -33,6 +33,25 @@ public extension NetworkClient {
     }
 }
 
+// MARK: - Domain Mapping
+
+public extension NetworkClient {
+    /// Performs a network request, decodes to a DTO, and maps to a domain model.
+    /// - Parameters:
+    ///   - endpoint: The endpoint to request.
+    ///   - dtoType: The DTO type to decode (must conform to DomainMappable).
+    ///   - decoder: The JSON decoder to use. Defaults to a new instance.
+    /// - Returns: The mapped domain model.
+    func request<DTO: Decodable & Sendable & DomainMappable>(
+        _ endpoint: some Endpoint,
+        mapping dtoType: DTO.Type,
+        decoder: JSONDecoder = JSONDecoder()
+    ) async throws -> DTO.DomainModel {
+        let dto: DTO = try await request(endpoint, decoder: decoder)
+        return try dto.toDomain()
+    }
+}
+
 // MARK: - URLSession Implementation
 
 /// A network client implementation using URLSession.
