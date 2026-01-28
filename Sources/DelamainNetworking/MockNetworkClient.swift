@@ -33,6 +33,8 @@ public actor MockNetworkClient: NetworkClient {
     }
 
     private var responses: [String: MockResponse] = [:]
+    private var responseSequences: [String: [MockResponse]] = [:]
+    private var sequenceIndices: [String: Int] = [:]
     private var defaultResponse: MockResponse?
     private var requestHistory: [URLRequest] = []
 
@@ -46,6 +48,13 @@ public actor MockNetworkClient: NetworkClient {
     /// Registers a mock response for a specific path with a JSON value.
     public func register<T: Encodable>(path: String, json: T, statusCode: Int = 200) throws {
         responses[path] = try .json(json, statusCode: statusCode)
+    }
+
+    /// Registers a sequence of responses for a path. Each call returns the next response in sequence.
+    /// After all responses are used, the last one repeats.
+    public func registerSequence(path: String, responses: [MockResponse]) {
+        responseSequences[path] = responses
+        sequenceIndices[path] = 0
     }
 
     /// Sets the default response for unregistered paths.
@@ -80,7 +89,16 @@ public actor MockNetworkClient: NetworkClient {
         requestHistory.append(request)
 
         let path = endpoint.path
-        let response = responses[path] ?? defaultResponse
+
+        // Check for sequence response first
+        let response: MockResponse?
+        if let sequence = responseSequences[path], !sequence.isEmpty {
+            let index = sequenceIndices[path] ?? 0
+            response = sequence[min(index, sequence.count - 1)]
+            sequenceIndices[path] = index + 1
+        } else {
+            response = responses[path] ?? defaultResponse
+        }
 
         guard let mockResponse = response else {
             throw NetworkError.custom("No mock response registered for path: \(path)")

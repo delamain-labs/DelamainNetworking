@@ -273,4 +273,55 @@ struct RetryTests {
         // Client should be created successfully with retry config
         #expect(client != nil)
     }
+
+    // NOTE: Behavioral retry tests (verifying actual retry on 503, etc.) require
+    // either a mock URLSession or extracting retry logic into a testable component.
+    // The retry logic is tightly coupled to URLSessionNetworkClient's performRequest.
+    // TODO: Consider extracting RetryExecutor for better testability.
+}
+
+@Suite("Mock Sequence Tests")
+struct MockSequenceTests {
+
+    @Test("MockClient returns sequential responses")
+    func mockClientReturnsSequentialResponses() async throws {
+        let mockClient = MockNetworkClient()
+        let user = TestUser(id: 1, name: "Test", email: "test@example.com")
+
+        // Register: first call fails with 503, second succeeds
+        await mockClient.registerSequence(path: "/users/1", responses: [
+            .error(statusCode: 503, message: "Service Unavailable"),
+            try .json(user)
+        ])
+
+        // First call should fail
+        await #expect(throws: NetworkError.self) {
+            let _: TestUser = try await mockClient.request(TestAPI.getUser(id: 1))
+        }
+
+        // Second call should succeed
+        let result: TestUser = try await mockClient.request(TestAPI.getUser(id: 1))
+        #expect(result == user)
+
+        // History should show both attempts
+        let history = await mockClient.getRequestHistory()
+        #expect(history.count == 2)
+    }
+
+    @Test("MockClient repeats last response in sequence")
+    func mockClientRepeatsLastResponse() async throws {
+        let mockClient = MockNetworkClient()
+        let user = TestUser(id: 1, name: "Test", email: "test@example.com")
+
+        // Register single success response
+        await mockClient.registerSequence(path: "/users/1", responses: [
+            try .json(user)
+        ])
+
+        // Multiple calls should all succeed (last response repeats)
+        for _ in 1...3 {
+            let result: TestUser = try await mockClient.request(TestAPI.getUser(id: 1))
+            #expect(result == user)
+        }
+    }
 }
