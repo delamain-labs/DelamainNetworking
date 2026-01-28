@@ -12,11 +12,12 @@ struct TestUser: Codable, Sendable, Equatable {
 
 // MARK: - DTO Mapping Test Models
 
+// swiftlint:disable identifier_name
 struct UserDTO: Codable, Sendable, DomainMappable {
     let user_id: Int
     let display_name: String
     let email_address: String
-    
+
     func toDomain() -> DomainUser {
         DomainUser(
             id: user_id,
@@ -25,6 +26,7 @@ struct UserDTO: Codable, Sendable, DomainMappable {
         )
     }
 }
+// swiftlint:enable identifier_name
 
 struct DomainUser: Equatable {
     let id: Int
@@ -38,9 +40,9 @@ enum TestAPI: Endpoint {
     case getUser(id: Int)
     case getUsers
     case createUser(TestUser)
-    
+
     var baseURL: URL { URL(string: "https://api.example.com")! }
-    
+
     var path: String {
         switch self {
         case .getUser(let id): return "/users/\(id)"
@@ -48,14 +50,14 @@ enum TestAPI: Endpoint {
         case .createUser: return "/users"
         }
     }
-    
+
     var method: HTTPMethod {
         switch self {
         case .getUser, .getUsers: return .get
         case .createUser: return .post
         }
     }
-    
+
     var body: Data? {
         switch self {
         case .getUser, .getUsers: return nil
@@ -68,58 +70,58 @@ enum TestAPI: Endpoint {
 
 @Suite("NetworkClient Tests")
 struct NetworkClientTests {
-    
+
     @Test("MockNetworkClient returns registered response")
     func mockClientReturnsRegisteredResponse() async throws {
         let mockClient = MockNetworkClient()
         let expectedUser = TestUser(id: 1, name: "Test User", email: "test@example.com")
-        
+
         try await mockClient.register(path: "/users/1", json: expectedUser)
-        
+
         let user: TestUser = try await mockClient.request(TestAPI.getUser(id: 1))
-        
+
         #expect(user == expectedUser)
     }
-    
+
     @Test("MockNetworkClient records request history")
     func mockClientRecordsHistory() async throws {
         let mockClient = MockNetworkClient()
         let user = TestUser(id: 1, name: "Test", email: "test@example.com")
-        
+
         try await mockClient.register(path: "/users/1", json: user)
-        
+
         let _: TestUser = try await mockClient.request(TestAPI.getUser(id: 1))
-        
+
         let history = await mockClient.getRequestHistory()
         #expect(history.count == 1)
         #expect(history.first?.url?.path == "/users/1")
     }
-    
+
     @Test("MockNetworkClient throws for HTTP errors")
     func mockClientThrowsForHTTPError() async throws {
         let mockClient = MockNetworkClient()
         await mockClient.setDefault(response: .error(statusCode: 404, message: "Not found"))
-        
+
         await #expect(throws: NetworkError.self) {
             let _: TestUser = try await mockClient.request(TestAPI.getUser(id: 999))
         }
     }
-    
+
     @Test("Request maps DTO to domain model")
     func requestMapsDTOToDomainModel() async throws {
         let mockClient = MockNetworkClient()
         let dto = UserDTO(user_id: 42, display_name: "Test User", email_address: "test@example.com")
-        
+
         try await mockClient.register(path: "/users/42", json: dto)
-        
+
         let domainUser = try await mockClient.request(
             TestAPI.getUser(id: 42),
             mapping: UserDTO.self
         )
-        
+
         #expect(domainUser == DomainUser(id: 42, name: "Test User", email: "test@example.com"))
     }
-    
+
     @Test("SimpleEndpoint constructs correct URL")
     func simpleEndpointConstructsURL() throws {
         let endpoint = SimpleEndpoint(
@@ -131,27 +133,27 @@ struct NetworkClientTests {
                 URLQueryItem(name: "limit", value: "10")
             ]
         )
-        
+
         let url = endpoint.url
         #expect(url?.absoluteString == "https://api.example.com/users?page=1&limit=10")
     }
-    
+
     @Test("SimpleEndpoint creates request with body")
     func simpleEndpointCreatesRequestWithBody() throws {
         let user = TestUser(id: 1, name: "Test", email: "test@example.com")
-        
+
         let endpoint = try SimpleEndpoint(
             baseURL: URL(string: "https://api.example.com")!,
             path: "/users",
             method: .post,
             body: user
         )
-        
+
         let request = try endpoint.makeRequest()
-        
+
         #expect(request.httpMethod == "POST")
         #expect(request.httpBody != nil)
-        
+
         let decodedUser = try JSONDecoder().decode(TestUser.self, from: request.httpBody!)
         #expect(decodedUser == user)
     }
@@ -159,29 +161,29 @@ struct NetworkClientTests {
 
 @Suite("Interceptor Tests")
 struct InterceptorTests {
-    
+
     @Test("HeaderInterceptor adds headers")
     func headerInterceptorAddsHeaders() async throws {
         let interceptor = HeaderInterceptor(headers: [
             "X-Custom-Header": "custom-value"
         ])
-        
+
         var request = URLRequest(url: URL(string: "https://example.com")!)
         request = try await interceptor.intercept(request)
-        
+
         #expect(request.value(forHTTPHeaderField: "X-Custom-Header") == "custom-value")
     }
-    
+
     @Test("BearerTokenInterceptor adds authorization header")
     func bearerTokenInterceptorAddsAuth() async throws {
         let interceptor = BearerTokenInterceptor(token: "test-token-123")
-        
+
         var request = URLRequest(url: URL(string: "https://example.com")!)
         request = try await interceptor.intercept(request)
-        
+
         #expect(request.value(forHTTPHeaderField: "Authorization") == "Bearer test-token-123")
     }
-    
+
     @Test("BearerTokenInterceptor uses dynamic token provider")
     func bearerTokenInterceptorUsesDynamicProvider() async throws {
         let counter = Counter()
@@ -189,10 +191,10 @@ struct InterceptorTests {
             let count = await counter.increment()
             return "dynamic-token-\(count)"
         }
-        
+
         var request = URLRequest(url: URL(string: "https://example.com")!)
         request = try await interceptor.intercept(request)
-        
+
         #expect(request.value(forHTTPHeaderField: "Authorization") == "Bearer dynamic-token-1")
     }
 }
@@ -200,7 +202,7 @@ struct InterceptorTests {
 // Helper actor for thread-safe counting in tests
 private actor Counter {
     private var value = 0
-    
+
     func increment() -> Int {
         value += 1
         return value
@@ -209,7 +211,7 @@ private actor Counter {
 
 @Suite("NetworkError Tests")
 struct NetworkErrorTests {
-    
+
     @Test("NetworkError provides localized descriptions")
     func networkErrorHasDescriptions() {
         let errors: [NetworkError] = [
@@ -219,7 +221,7 @@ struct NetworkErrorTests {
             .cancelled,
             .custom("Test error")
         ]
-        
+
         for error in errors {
             #expect(error.localizedDescription.isEmpty == false)
         }
